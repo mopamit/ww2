@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WWII: המערכה על אירופה</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- גופן מיוחד למראה "מסמך סודי" -->
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --panel-bg: rgba(20, 20, 20, 0.95);
+            --text-color: #e0e0e0;
+            --accent-red: #c0392b; /* Axis */
+            --accent-green: #27ae60; /* Allies */
+            --accent-gold: #f1c40f; /* Highlight */
+            --border-color: #555;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Courier Prime', monospace;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- UI Elements --- */
+        #top-bar {
+            background: #000;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--border-color);
+            z-index: 1000;
+            height: 50px;
+        }
+
+        .status-indicator {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        #date-display { color: var(--accent-gold); }
+        #score-display { color: #fff; }
+
+        /* --- Map --- */
+        #map {
+            flex-grow: 1;
+            background: #242424; /* Sea color */
+            z-index: 1;
+        }
+
+        /* --- Briefing Panel (Bottom) --- */
+        #briefing-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 800px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 4px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        #briefing-title {
+            color: var(--accent-red);
+            margin: 0 0 10px 0;
+            text-transform: uppercase;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+            font-size: 1.1rem;
+        }
+
+        #briefing-text {
+            font-size: 1rem;
+            line-height: 1.5;
+            min-height: 60px; /* Prevent jumping */
+        }
+
+        /* --- Modals (Start/End/Alerts) --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .modal-content {
+            background: #111;
+            border: 2px solid var(--accent-gold);
+            padding: 40px;
+            max-width: 600px;
+            text-align: center;
+            box-shadow: 0 0 30px rgba(241, 196, 15, 0.2);
+            position: relative;
+        }
+
+        .modal-content::before {
+            /* Old TV lines effect */
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        h1 { color: var(--accent-gold); margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
+        
+        .btn {
+            background: transparent;
+            border: 1px solid var(--accent-gold);
+            color: var(--accent-gold);
+            padding: 10px 30px;
+            font-family: 'Courier Prime', monospace;
+            font-size: 1.2rem;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        .btn:hover {
+            background: var(--accent-gold);
+            color: #000;
+        }
+
+        .hidden { display: none !important; }
+
+        /* --- Pulse Effect for Map --- */
+        @keyframes pulse-red {
+            0% { fill-opacity: 0.6; }
+            50% { fill-opacity: 0.9; }
+            100% { fill-opacity: 0.6; }
+        }
+        .pulse-animation {
+            animation: pulse-red 2s infinite;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Top UI -->
+    <div id="top-bar">
+        <div id="date-display" class="status-indicator">1939</div>
+        <div style="font-size: 0.8rem; letter-spacing: 1px; color: #888;">סיווג: סודי ביותר</div>
+        <div id="score-display" class="status-indicator">ניקוד: 0</div>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Briefing Panel -->
+    <div id="briefing-panel" class="hidden">
+        <h3 id="briefing-title">מבצע נוכחי</h3>
+        <div id="briefing-text"></div>
+    </div>
+
+    <!-- Start Screen Modal -->
+    <div id="start-screen" class="modal-overlay">
+        <div class="modal-content">
+            <h1>אירופה בלהבות</h1>
+            <p>1939 - 1945</p>
+            <p style="margin: 20px 0; color: #aaa;">
+                קבל פיקוד על ההיסטוריה.<br>
+                עליך לזהות את המדינות המעורבות בכל שלב של המלחמה.<br>
+                קרא את המודיעין בזהירות.
+            </p>
+            <button class="btn" onclick="startGame()">התחל סימולציה</button>
+        </div>
+    </div>
+
+    <!-- Level Complete Modal -->
+    <div id="level-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h1 id="level-title">הצלחה</h1>
+            <p id="level-desc">תיאור היסטורי כאן</p>
+            <button class="btn" onclick="nextLevel()">המשך לשלב הבא</button>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // --- Game Data ---
+        // targetId matches the 'sovereignt' or 'name' in GeoJSON
+        const campaigns = [
+            {
+                year: "1939, ספטמבר",
+                title: "הפלישה לפולין",
+                brief: "גרמניה הנאצית פולשת לשכנתה המזרחית, מהלך שפותח את מלחמת העולם השנייה. ברית המועצות פולשת מאוחר יותר ממזרח.",
+                targetId: "Poland", 
+                type: "axis_invade", // Changes color to RED
+                zoom: [52, 20],
+                fact: "הצבא הפולני נלחם באומץ אך הוכרע תוך חודש על ידי טקטיקת 'מלחמת הבזק' הגרמנית."
+            },
+            {
+                year: "1940, מאי",
+                title: "הקרב על צרפת",
+                brief: "הגרמנים עוקפים את קו מאז'ינו ופולשים דרך הארדנים. המעצמה המערבית הגדולה קורסת.",
+                targetId: "France",
+                type: "axis_invade",
+                zoom: [47, 2],
+                fact: "צרפת נכנעה תוך שישה שבועות בלבד. פריז נכבשה ללא קרב כדי למנוע את הרסה."
+            },
+            {
+                year: "1940, אוגוסט",
+                title: "הקרב על בריטניה",
+                brief: "נותרה לבדה מול היטלר. הקרב מתנהל באוויר בלבד. הלופטוואפה מנסה להשמיד את חיל האוויר המלכותי.",
+                targetId: "United Kingdom",
+                type: "defend", // Stays Green/Blue but maybe flash?
+                zoom: [54, -2],
+                fact: "הראדאר והאומץ של הטייסים הבריטים מנעו פלישה גרמנית. 'מעולם לא חבו רבים כל כך, למעטים כל כך'."
+            },
+            {
+                year: "1941, יוני",
+                title: "מבצע ברברוסה",
+                brief: "הפלישה הגדולה בהיסטוריה. גרמניה מפרה את ההסכם ותוקפת את המעצמה הקומוניסטית במזרח.",
+                targetId: "Russia", // In map data usually Russia represents USSR area
+                type: "axis_invade_partial",
+                zoom: [55, 37],
+                fact: "החורף הרוסי והמרחבים העצומים עצרו את הגרמנים בשערי מוסקבה."
+            },
+            {
+                year: "1943, יולי",
+                title: "פלישה לסיציליה ואיטליה",
+                brief: "בעלות הברית פותחות חזית בדרום אירופה, בבטן הרכה של הציר.",
+                targetId: "Italy",
+                type: "allies_liberate", // Changes color to Green
+                zoom: [42, 12],
+                fact: "מוסוליני הודח, אך הגרמנים השתלטו על המדינה והלחימה נמשכה עד 1945."
+            },
+            {
+                year: "1944, יוני",
+                title: "הפלישה לנורמנדי (D-Day)",
+                brief: "המבצע הימי הגדול בהיסטוריה. בעלות הברית נוחתות בחופי צרפת כדי לשחרר את אירופה.",
+                targetId: "France",
+                type: "allies_liberate",
+                zoom: [48, 2],
+                fact: "פתיחת החזית השנייה אילצה את גרמניה להילחם בשתי חזיתות בו זמנית וחרצה את גורלה."
+            },
+            {
+                year: "1945, מאי",
+                title: "נפילת ברלין",
+                brief: "בעלות הברית סוגרות על הלב של הרייך השלישי ממזרח וממערב. המלחמה באירופה מסתיימת.",
+                targetId: "Germany",
+                type: "allies_conquer",
+                zoom: [51, 10],
+                fact: "גרמניה נכנעה ללא תנאי. המלחמה באירופה תמה, אך נמשכה באוקיינוס השקט."
+            }
+        ];
+
+        // --- State Variables ---
+        let map;
+        let geoJsonLayer;
+        let currentStageIdx = 0;
+        let score = 0;
+        let isInputLocked = true;
+        
+        // --- Init ---
+        function initMap() {
+            // Dark stylized map
+            map = L.map('map', {
+                center: [50, 15],
+                zoom: 4,
+                zoomControl: false,
+                attributionControl: false
+            });
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19
+            }).addTo(map);
+
+            // Fetch Data
+            fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
+            .then(res => res.json())
+            .then(data => {
+                // Filter for Europe roughly + Russia + N.Africa
+                const relevant = data.features.filter(f => {
+                    // Simple check if country is roughly in our theater
+                    const p = f.properties.name;
+                    return ["Poland", "France", "Germany", "United Kingdom", "Russia", "Italy", "Spain", "Ukraine", "Belarus", "Romania", "Hungary", "Austria", "Czech Republic", "Greece", "Norway", "Sweden", "Finland", "Netherlands", "Belgium"].includes(p);
+                });
+
+                geoJsonLayer = L.geoJSON(relevant, {
+                    style: defaultStyle,
+                    onEachFeature: onFeatureInteract
+                }).addTo(map);
+            });
+        }
+
+        // --- Styling ---
+        function defaultStyle(feature) {
+            // Base style for all countries
+            return {
+                fillColor: '#2c3e50',
+                weight: 1,
+                opacity: 1,
+                color: '#444',
+                fillOpacity: 0.7
+            };
+        }
+
+        function getHighlightStyle(type) {
+            if (type === 'axis') return { fillColor: '#c0392b', fillOpacity: 0.9, color: '#e74c3c' };
+            if (type === 'allies') return { fillColor: '#27ae60', fillOpacity: 0.9, color: '#2ecc71' };
+            return { weight: 3, color: '#f1c40f', fillOpacity: 0.8 }; // Hover default
+        }
+
+        // --- Interaction ---
+        function onFeatureInteract(feature, layer) {
+            // Keep reference to layer in feature properties for easy access
+            feature.layerRef = layer;
+
+            layer.on('mouseover', function(e) {
+                if(isInputLocked) return;
+                // Only highlight if not already permanently colored
+                if (!feature.properties.permanentStatus) {
+                    layer.setStyle({ weight: 3, color: '#f1c40f', fillOpacity: 0.9 });
+                }
+            });
+
+            layer.on('mouseout', function(e) {
+                if(isInputLocked) return;
+                if (!feature.properties.permanentStatus) {
+                    geoJsonLayer.resetStyle(layer);
+                }
+            });
+
+            layer.on('click', function(e) {
+                if(isInputLocked) return;
+                checkAnswer(feature.properties.name, layer);
+            });
+        }
+
+        // --- Game Logic ---
+
+        function startGame() {
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('briefing-panel').classList.remove('hidden');
+            initMap();
+            // Allow map to load before starting level 1
+            setTimeout(() => {
+                loadLevel(0);
+            }, 1000);
+        }
+
+        function loadLevel(idx) {
+            if (idx >= campaigns.length) {
+                endGame();
+                return;
+            }
+            
+            currentStageIdx = idx;
+            const stage = campaigns[idx];
+            
+            // Update UI
+            document.getElementById('date-display').innerText = stage.year;
+            document.getElementById('briefing-title').innerText = stage.title;
+            
+            // Typewriter effect for briefing
+            typeWriter(stage.brief, document.getElementById('briefing-text'), () => {
+                isInputLocked = false; // Unlock game after text finishes
+            });
+
+            // Move Camera
+            map.flyTo(stage.zoom, 5, { duration: 2 });
+        }
+
+        function checkAnswer(clickedName, layer) {
+            const stage = campaigns[currentStageIdx];
+            
+            if (clickedName === stage.targetId) {
+                // Correct!
+                isInputLocked = true;
+                score += 100;
+                document.getElementById('score-display').innerText = "ניקוד: " + score;
+
+                // Permanent Visual Change
+                let newColor = '#2c3e50';
+                if (stage.type.includes('axis')) newColor = '#c0392b'; // Red
+                if (stage.type.includes('allies')) newColor = '#27ae60'; // Green
+
+                layer.setStyle({ fillColor: newColor, fillOpacity: 0.8, color: newColor });
+                layer.feature.properties.permanentStatus = stage.type;
+
+                // Show Success Modal
+                document.getElementById('level-title').innerText = "המשימה הושלמה";
+                document.getElementById('level-title').style.color = "#2ecc71";
+                document.getElementById('level-desc').innerText = stage.fact;
+                document.getElementById('level-modal').classList.remove('hidden');
+
+            } else {
+                // Wrong
+                score -= 20;
+                document.getElementById('score-display').innerText = "ניקוד: " + score;
+                layer.setStyle({ fillColor: '#e74c3c', fillOpacity: 1 });
+                setTimeout(() => {
+                    if(!layer.feature.properties.permanentStatus) geoJsonLayer.resetStyle(layer);
+                }, 500);
+            }
+        }
+
+        function nextLevel() {
+            document.getElementById('level-modal').classList.add('hidden');
+            document.getElementById('briefing-text').innerText = ""; // Clear text
+            loadLevel(currentStageIdx + 1);
+        }
+
+        function endGame() {
+            document.getElementById('level-title').innerText = "יום הניצחון!";
+            document.getElementById('level-title').style.color = "#f1c40f";
+            document.getElementById('level-desc').innerHTML = `סיימת את המלחמה.<br>הניקוד הסופי שלך: ${score}<br><br>העולם חופשי שוב.`;
+            document.getElementById('level-modal').classList.remove('hidden');
+            // Hide next button, show reload
+            const btn = document.querySelector('#level-modal .btn');
+            btn.innerText = "שחק שוב";
+            btn.onclick = () => location.reload();
+        }
+
+        // --- Utilities ---
+        
+        function typeWriter(text, element, callback) {
+            element.innerHTML = "";
+            isInputLocked = true;
+            let i = 0;
+            const speed = 30; // ms per char
+            
+            function type() {
+                if (i < text.length) {
+                    element.innerHTML += text.charAt(i);
+                    i++;
+                    setTimeout(type, speed);
+                } else {
+                    if (callback) callback();
+                }
+            }
+            type();
+        }
+
+    </script>
+</body>
+</html>
