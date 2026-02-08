@@ -3,29 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>חדר מלחמה: 1939-1945</title>
+    <title>מלחמת העולם השנייה - חדר מצב</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- פונט מכונת כתיבה לאווירת רטרו -->
-    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+    <!-- גופנים -->
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Heebo:wght@300;400;700&display=swap" rel="stylesheet">
 
     <style>
         :root {
             --bg-color: #111;
             --terminal-green: #33ff33;
             --terminal-amber: #ffb000;
-            --axis-red: #ff3333;
-            --allies-blue: #3399ff;
-            --soviet-purple: #bd00ff;
-            --panel-bg: rgba(10, 10, 10, 0.9);
-            --border-color: #444;
+            --axis-red: #ff4444;
+            --allies-blue: #4488ff;
+            --panel-bg: rgba(10, 15, 20, 0.95);
+            --border-color: #555;
+            --card-bg: #fdfbf7;
+            --card-text: #2c1e12;
         }
 
         body {
             margin: 0;
             padding: 0;
-            font-family: 'Courier Prime', monospace; /* פונט מכונת כתיבה */
+            font-family: 'Courier Prime', monospace;
             background-color: var(--bg-color);
             color: #eee;
             overflow: hidden;
@@ -34,18 +35,66 @@
             flex-direction: column;
         }
 
-        /* --- אפקט מסך ישן (Scanlines) --- */
+        /* --- מסך סריקה (Scanlines) --- */
         .scanlines {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
             background-size: 100% 2px, 3px 100%;
-            pointer-events: none; /* מאפשר לחיצות דרך האפקט */
+            pointer-events: none;
             z-index: 9999;
-            opacity: 0.6;
+            opacity: 0.3;
         }
 
-        /* --- סרגל עליון --- */
+        /* --- תפריט ראשי --- */
+        #main-menu {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #000 url('https://www.transparenttextures.com/patterns/black-felt.png'); 
+            z-index: 5000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .menu-title {
+            font-size: 4rem;
+            color: var(--terminal-amber);
+            text-shadow: 0 0 20px var(--terminal-amber);
+            margin-bottom: 50px;
+            border-bottom: 2px solid var(--terminal-amber);
+            padding-bottom: 20px;
+        }
+
+        .menu-btn {
+            background: transparent;
+            border: 2px solid var(--terminal-green);
+            color: var(--terminal-green);
+            padding: 20px 50px;
+            margin: 15px;
+            font-family: 'Courier Prime', monospace;
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+            width: 500px;
+        }
+
+        .menu-btn:hover {
+            background: var(--terminal-green);
+            color: #000;
+            box-shadow: 0 0 30px var(--terminal-green);
+        }
+
+        /* --- ממשק משחק כללי --- */
+        #game-ui {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+        }
+
         #top-bar {
             background: #000;
             border-bottom: 2px solid var(--border-color);
@@ -57,200 +106,178 @@
             z-index: 1000;
         }
 
-        .status-box {
-            border: 1px solid var(--border-color);
+        .home-btn {
+            background: #333;
+            color: white;
+            border: 1px solid #666;
             padding: 5px 15px;
-            background: #222;
+            cursor: pointer;
+            font-family: inherit;
         }
 
-        #year-display { color: var(--terminal-amber); font-weight: bold; font-size: 1.5rem; letter-spacing: 2px; }
-        #score-display { color: var(--terminal-green); }
-
-        /* --- מפה --- */
+        #mode-title { color: var(--terminal-amber); font-weight: bold; font-size: 1.2rem; }
+        
         #map {
             flex-grow: 1;
             background: #1a1a1a;
             z-index: 1;
         }
 
-        /* עיצוב התוויות על המפה */
-        .leaflet-tooltip.country-label {
-            background: transparent;
-            border: none;
-            box-shadow: none;
-            color: rgba(255,255,255,0.9);
-            font-family: 'Courier Prime', monospace;
-            font-weight: bold;
-            font-size: 14px;
-            text-align: center;
-            text-shadow: 2px 2px 0px #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-        }
-        
-        .flag-icon { font-size: 24px; display: block; margin-bottom: -5px; }
-
-        /* --- יומן אירועים (צד ימין) --- */
-        #event-log-container {
-            position: absolute;
-            top: 70px;
-            right: 0;
-            z-index: 1000;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-        }
-
-        #log-toggle {
-            background: #333;
-            color: #fff;
-            border: 1px solid var(--border-color);
-            border-right: none;
-            padding: 10px;
-            cursor: pointer;
-            font-family: inherit;
-        }
-
-        #event-log {
-            width: 300px;
-            max-height: 50vh;
-            background: rgba(0, 0, 0, 0.95);
-            border: 1px solid var(--border-color);
-            border-right: none;
-            overflow-y: auto;
-            padding: 10px;
-            display: none; /* מוסתר כברירת מחדל */
-            font-size: 0.9rem;
-        }
-
-        .log-entry {
-            border-bottom: 1px dashed #444;
-            padding: 8px 0;
-            color: #aaa;
-        }
-        .log-entry span { color: var(--terminal-amber); display: block; font-weight: bold; font-size: 0.8rem; }
-        .log-entry.active { color: #fff; border-left: 3px solid var(--terminal-green); padding-left: 5px; }
-
-        /* --- פאנל תחתון (משימות) --- */
-        #briefing-panel {
+        /* --- אלמנטים למשחק 1: ציר הזמן --- */
+        #timeline-panel {
             position: absolute;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            width: 600px;
+            width: 70%;
             background: var(--panel-bg);
-            border: 2px solid var(--border-color);
+            border: 2px solid var(--terminal-green);
             padding: 20px;
             z-index: 1000;
-            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            display: none;
         }
 
-        #briefing-title {
-            color: var(--terminal-amber);
-            margin: 0 0 10px 0;
-            text-transform: uppercase;
-            border-bottom: 1px solid #444;
-            padding-bottom: 5px;
+        /* --- אלמנטים למשחק 2: כרטיסיות --- */
+        #cards-panel {
+            position: absolute;
+            top: 70px;
+            right: 20px;
+            width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+            background: var(--card-bg);
+            color: var(--card-text);
+            padding: 0;
+            z-index: 1000;
+            box-shadow: 5px 5px 25px rgba(0,0,0,0.7);
+            font-family: 'Heebo', sans-serif;
+            border: 4px solid #333;
+            display: none;
         }
 
-        #instruction {
-            color: var(--terminal-green);
-            font-size: 0.8rem;
-            margin-top: 10px;
-            animation: blink 1.5s infinite;
-        }
-
-        @keyframes blink { 0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0; } }
-
-        /* --- מסכים קופצים --- */
-        .modal {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 10000;
-        }
-
-        .modal-content {
-            border: 2px solid var(--terminal-green);
-            padding: 40px;
-            max-width: 600px;
+        .card-header {
+            background: #8b0000;
+            color: white;
+            padding: 15px;
+            font-size: 1.4rem;
+            font-weight: 700;
             text-align: center;
-            background: #000;
-            box-shadow: 0 0 20px var(--terminal-green);
-        }
-
-        .btn {
-            background: transparent;
-            border: 1px solid var(--terminal-green);
-            color: var(--terminal-green);
-            padding: 10px 30px;
-            font-family: inherit;
-            font-size: 1.2rem;
-            cursor: pointer;
-            margin-top: 20px;
-            transition: 0.3s;
+            border-bottom: 4px solid #000;
             text-transform: uppercase;
         }
-        .btn:hover { background: var(--terminal-green); color: #000; }
+
+        .card-content {
+            padding: 25px;
+            font-size: 1.05rem;
+            line-height: 1.6;
+        }
+
+        .card-content b { color: #8b0000; }
+        .card-section { margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px dashed #ccc; }
+        .card-section:last-child { border-bottom: none; }
+
+        #find-instruction {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            color: var(--terminal-amber);
+            padding: 15px 40px;
+            border-radius: 4px;
+            font-size: 1.5rem;
+            border: 2px solid var(--terminal-amber);
+            box-shadow: 0 0 20px var(--terminal-amber);
+            display: none;
+            z-index: 1000;
+            text-align: center;
+        }
+
+        /* --- יומן אירועים (משותף) --- */
+        #event-log {
+            position: absolute;
+            top: 70px;
+            left: 10px;
+            width: 250px;
+            max-height: 400px;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.8);
+            border: 1px solid #444;
+            color: #ccc;
+            padding: 10px;
+            font-size: 0.8rem;
+            display: none;
+            z-index: 999;
+        }
+
+        /* --- אנימציות וכללי --- */
         .hidden { display: none !important; }
+        .blink { animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
 
     </style>
 </head>
 <body>
 
     <div class="scanlines"></div>
-
-    <!-- אודיו לרקע -->
-    <!-- שים לב: הקובץ war.mp3 צריך להיות באותה תיקייה. הוספתי loop כדי שיתנגן ברצף -->
     <audio id="bg-music" loop>
         <source src="war.mp3" type="audio/mpeg">
     </audio>
 
-    <div id="top-bar">
-        <div class="status-box">תאריך: <span id="year-display">1939</span></div>
-        <div style="font-size: 1.2rem; color: #666; letter-spacing: 5px;">TOP SECRET</div>
-        <div class="status-box">ניקוד: <span id="score-display">0</span></div>
+    <!-- תפריט ראשי -->
+    <div id="main-menu">
+        <div class="menu-title">WWII COMMAND CENTER</div>
+        <button class="menu-btn" onclick="startTimelineGame()">משחק 1: המלחמה על ציר הזמן</button>
+        <button class="menu-btn" onclick="startCardsGame()">משחק 2: הכר את המפה (ארכיון)</button>
     </div>
 
-    <!-- יומן אירועים נפתח -->
-    <div id="event-log-container">
-        <button id="log-toggle" onclick="toggleLog()">יומן מבצעים ▼</button>
-        <div id="event-log">
-            <!-- לוגים יתווספו כאן דינמית -->
+    <!-- ממשק משחק -->
+    <div id="game-ui">
+        <div id="top-bar">
+            <div>
+                <button class="home-btn" onclick="location.reload()">חזרה לתפריט</button>
+                <span id="mode-title" style="margin-right: 20px;"></span>
+            </div>
+            <div id="status-display" style="color:white; font-weight:bold;"></div>
         </div>
-    </div>
 
-    <div id="map"></div>
+        <div id="map"></div>
+        <div id="event-log"></div>
 
-    <div id="briefing-panel" class="hidden">
-        <h3 id="briefing-title"></h3>
-        <div id="briefing-text"></div>
-        <div id="instruction">>> המתן לפקודות או לחץ על היעד...</div>
-    </div>
-
-    <!-- מסך פתיחה -->
-    <div id="start-screen" class="modal">
-        <div class="modal-content">
-            <h1 style="color: var(--terminal-green); text-shadow: 0 0 10px;">WAR ROOM</h1>
-            <p>סימולציית מלחמת העולם השנייה</p>
-            <p style="font-size: 0.9rem; color: #888;">הפעלת רמקולים מומלצת</p>
-            <button class="btn" onclick="startGame()">התחל משימה</button>
+        <!-- פאנל משחק 1: ציר הזמן -->
+        <div id="timeline-panel">
+            <h3 id="briefing-title" style="color:var(--terminal-amber); margin:0 0 10px 0;"></h3>
+            <div id="briefing-text" style="font-size:1.1rem; line-height:1.5;"></div>
+            <div id="timeline-instruction" class="blink" style="color:var(--terminal-green); margin-top:10px;">>> לחץ על היעד במפה</div>
         </div>
-    </div>
 
-    <!-- מסך סיום שלב -->
-    <div id="level-modal" class="modal hidden">
-        <div class="modal-content" style="border-color: var(--terminal-amber); box-shadow: 0 0 20px var(--terminal-amber);">
-            <h2 id="level-title" style="color: var(--terminal-amber)">דיווח מודיעין</h2>
-            <p id="level-desc"></p>
-            <button class="btn" style="border-color: var(--terminal-amber); color: var(--terminal-amber)" onclick="nextLevel()">המשך</button>
+        <!-- פאנל משחק 2: כרטיסיות -->
+        <div id="find-instruction"></div>
+        
+        <div id="cards-panel">
+            <div class="card-header" id="card-header">תיק מדינה</div>
+            <div class="card-content" id="card-body">
+                <!-- תוכן הכרטיס ייכנס כאן -->
+            </div>
+            <div style="text-align:center; padding:15px; background:#e0e0e0; border-top:1px solid #999;">
+                <button onclick="nextCard()" style="padding:10px 30px; background:#8b0000; color:white; border:none; cursor:pointer; font-size:1.1rem; font-weight:bold;">סגור תיק והמשך >></button>
+            </div>
         </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // --- נתוני המדינות (עברית בלבד) ---
+        // ==========================================
+        // 1. נתונים גיאוגרפיים וכלליים
+        // ==========================================
+        let map, geoJsonLayer;
+        let currentGameMode = null; // 'timeline' or 'cards'
+        let currentStageIndex = 0;
+        let score = 0;
+        let isInputLocked = false;
+
+        // מיפוי שמות באנגלית לשמות בעברית ודגלים
         const countryData = {
             "Germany": { name: "גרמניה", flag: "🇩🇪", side: "axis" },
             "Italy": { name: "איטליה", flag: "🇮🇹", side: "axis" },
@@ -270,133 +297,370 @@
             "Portugal": { name: "פורטוגל", flag: "🇵🇹", side: "neutral" },
             "Romania": { name: "רומניה", flag: "🇷🇴", side: "axis" },
             "Hungary": { name: "הונגריה", flag: "🇭🇺", side: "axis" },
-            "Finland": { name: "פינלנד", flag: "🇫🇮", side: "neutral" }
+            "Finland": { name: "פינלנד", flag: "🇫🇮", side: "neutral" },
+            "Austria": { name: "אוסטריה", flag: "🇦🇹", side: "axis" },
+            "Czech Republic": { name: "צ'כוסלובקיה", flag: "🇨🇿", side: "allies" },
+            "Bulgaria": { name: "בולגריה", flag: "🇧🇬", side: "axis" },
+            "Republic of Serbia": { name: "יוגוסלביה", flag: "🇷🇸", side: "neutral" }, 
+            "Croatia": { name: "קרואטיה", flag: "🇭🇷", side: "neutral" },
+            "Japan": { name: "יפן", flag: "🇯🇵", side: "axis" }
         };
 
-        // --- שלבי המשחק ---
-        const campaigns = [
+        // ==========================================
+        // 2. נתוני משחק 1: ציר הזמן
+        // ==========================================
+        const timelineStages = [
             {
-                year: "1939",
+                year: "1938",
+                title: "אנשלוס",
+                text: "היטלר מספח את אוסטריה לגרמניה ללא ירייה אחת. האוסטרים מקבלים את הנאצים באהדה.<br><b>משימה:</b> לחץ על אוסטריה.",
+                targetId: "Austria",
+                zoom: [47, 13],
+                action: "axis_annex",
+                successMsg: "אוסטריה סופחה לרייך."
+            },
+            {
+                year: "1939, אוגוסט",
                 title: "הסכם ריבנטרופ-מולוטוב",
-                text: "אוגוסט 1939. גרמניה וברית המועצות מחלקות ביניהן את מזרח אירופה. לחץ על המדינה שתחולק בין המעצמות.",
+                text: "הסכם מפתיע בין גרמניה הנאצית לברית המועצות הקומוניסטית. הן מחלקות ביניהן את מזרח אירופה.<br><b>משימה:</b> לחץ על המדינה שתחולק - פולין.",
                 targetId: "Poland",
                 zoom: [52, 20],
-                actionType: "split",
-                fact: "פולין נמחקה מהמפה. גרמניה קיבלה את המערב, ברית המועצות את המזרח."
+                action: "split",
+                successMsg: "פולין חולקה בין גרמניה לברה\"מ."
             },
             {
                 year: "1.9.1939",
                 title: "פרוץ המלחמה",
-                text: "גרמניה פותחת ב'בליצקריג' (מלחמת בזק). לחץ על גרמניה כדי לשלח את הכוחות.",
+                text: "גרמניה פולשת לפולין ב'בליצקריג' (מלחמת בזק). בריטניה וצרפת מכריזות מלחמה.<br><b>משימה:</b> לחץ על גרמניה כדי להתחיל את המתקפה.",
                 targetId: "Germany",
                 zoom: [51, 10],
-                actionType: "axis_attack",
-                fact: "וורשה הופצצה. בריטניה וצרפת הכריזו מלחמה, אך לא עשו דבר."
+                action: "axis_attack",
+                successMsg: "המלחמה החלה. וורשה נכבשה תוך שבועיים."
             },
             {
-                year: "1940",
-                title: "הנפילה במערב",
-                text: "גרמניה עוקפת את קו ההגנה ופולשת לצרפת. הצבא הצרפתי קורס תוך שבועות.",
+                year: "1940, אפריל",
+                title: "כיבוש צפון אירופה",
+                text: "גרמניה פונה צפונה וכובשת מדינות קטנות במהירות.<br><b>משימה:</b> לחץ על נורווגיה.",
+                targetId: "Norway",
+                zoom: [60, 8],
+                action: "conquest",
+                successMsg: "דנמרק ונורווגיה נכבשו."
+            },
+            {
+                year: "1940, מאי",
+                title: "הפלישה למערב",
+                text: "גרמניה עוקפת את קו ההגנה ופולשת דרך בלגיה והולנד לתוך צרפת. הבריטים בורחים בדנקרק.<br><b>משימה:</b> לחץ על צרפת.",
                 targetId: "France",
                 zoom: [46, 2],
-                actionType: "conquest",
-                fact: "פריז נכבשה. ממשל בובות הוקם בוישי. אירופה כמעט כולה תחת מגף הנאצים."
+                action: "conquest",
+                successMsg: "צרפת נכנעה ביוני 1940. הוקם 'ממשל וישי'."
             },
             {
-                year: "1940",
+                year: "1940-1941",
                 title: "הקרב על בריטניה",
-                text: "היעד הבא של היטלר: לונדון. הקרב מתנהל באוויר בלבד. לחץ על המדינה שעמדה לבדה.",
+                text: "בריטניה נותרה לבדה. קרבות אוויר קשים בין הלופטוואפה לחיל האוויר המלכותי.<br><b>משימה:</b> לחץ על בריטניה.",
                 targetId: "United Kingdom",
                 zoom: [54, -2],
-                actionType: "defend",
-                fact: "הראדאר והטייסים הבריטים שברו את הלופטוואפה. הפלישה בוטלה."
+                action: "defend",
+                successMsg: "בריטניה החזיקה מעמד ולא נכבשה."
             },
             {
-                year: "1941",
+                year: "1941, יוני",
                 title: "מבצע ברברוסה",
-                text: "יוני 1941. גרמניה בוגדת בבעלת בריתה ותוקפת את המעצמה במזרח.",
+                text: "היטלר מפר את ההסכם ותוקף את ברית המועצות.<br><b>משימה:</b> לחץ על ברית המועצות.",
                 targetId: "Russia",
                 zoom: [55, 37],
-                actionType: "soviet_defend",
-                fact: "הגרמנים הגיעו לשערי מוסקבה, אך קפאו בחורף הרוסי. המלחמה הפכה עולמית."
+                action: "soviet_defend",
+                successMsg: "הגרמנים נבלמו בחורף הרוסי."
             },
             {
-                year: "1943",
-                title: "החזית האיטלקית",
-                text: "בעלות הברית פולשות ל'בטן הרכה' של אירופה מדרום.",
-                targetId: "Italy",
-                zoom: [42, 12],
-                actionType: "liberate",
-                fact: "איטליה נכנעה. גרמניה פלשה לצפון איטליה כדי לעצור את בעלות הברית."
+                year: "1941, דצמבר",
+                title: "פרל הארבור",
+                text: "יפן תוקפת את ארה\"ב. ארה\"ב מצטרפת למלחמה.<br><b>משימה:</b> לחץ על יפן (במזרח הרחוק).",
+                targetId: "Japan",
+                zoom: [36, 138],
+                action: "axis_attack",
+                successMsg: "המלחמה הפכה לעולמית באמת."
             },
             {
-                year: "1944",
+                year: "1944, יוני",
                 title: "הפלישה לנורמנדי",
-                text: "6 ביוני 1944. הצי הגדול בהיסטוריה נוחת בחופי צרפת כדי לשחרר את אירופה.",
+                text: "יום ה-D-Day. בעלות הברית נוחתות בצרפת לשחרור אירופה.<br><b>משימה:</b> לחץ על צרפת.",
                 targetId: "France",
                 zoom: [48, 2],
-                actionType: "liberate",
-                fact: "החומה האטלנטית נפרצה. הדרך לברלין נפתחה."
+                action: "liberate",
+                successMsg: "צרפת שוחררה. הדרך לברלין פתוחה."
             },
             {
-                year: "1945",
-                title: "סוף הרייך",
-                text: "מאי 1945. הרוסים בברלין. האמריקאים במערב. לחץ על גרמניה לכניעה סופית.",
+                year: "1945, מאי",
+                title: "כניעת גרמניה",
+                text: "הרוסים בברלין. היטלר מתאבד. גרמניה נכנעת.<br><b>משימה:</b> לחץ על גרמניה.",
                 targetId: "Germany",
                 zoom: [51, 10],
-                actionType: "final_victory",
-                fact: "גרמניה נכנעה ללא תנאי. המלחמה באירופה הסתיימה."
+                action: "final_victory",
+                successMsg: "המלחמה באירופה הסתיימה."
             }
         ];
 
-        let map, geoJsonLayer;
-        let currentStageIdx = 0;
-        let score = 0;
-        let isInputLocked = true;
+        // ==========================================
+        // 3. נתוני משחק 2: הכר את המפה (כרטיסים מורחבים)
+        // ==========================================
+        const countryCards = [
+            {
+                id: "Austria",
+                title: "אוסטריה",
+                content: `
+                    <div class='card-section'><b>תאריך:</b> 13 במרץ 1938</div>
+                    <div class='card-section'><b>סטטוס מדיני:</b> סופחה לגרמניה (האנשלוס).</div>
+                    <div class='card-section'>
+                        <b>פירוט:</b><br>
+                        אוסטריה הפכה לחלק מהרייך הגרמני. חיילי גרמניה נכנסו והתקבלו באהדה רבה על ידי מרבית האוסטרים.
+                        <br><br>
+                        כ-950,000 אוסטרים נלחמו למען גרמניה הנאצית. אוסטרים רבים השתלבו בהנהגה הנאצית ובפיקוד על מחנות המוות.
+                    </div>`
+            },
+            {
+                id: "Czech Republic",
+                title: "צ'כוסלובקיה",
+                content: `
+                    <div class='card-section'><b>תאריך:</b> 1938 (חבל הסודטים), מרץ 1939 (כיבוש מלא).</div>
+                    <div class='card-section'><b>סטטוס מדיני:</b> פורקה ונכבשה.</div>
+                    <div class='card-section'>
+                        <b>פירוט:</b><br>
+                        לאחר ויתור המעצמות ב"הסכם מינכן", גרמניה סיפחה את חבל הסודטים. ב-1939 היא כבשה את יתר המדינה.
+                        <br><br>
+                        המדינה חדלה להתקיים: אזור צ'כיה הפך ל"פרוטקטורט" תחת שלטון גרמני ישיר, וסלובקיה הפכה למדינת חסות (בובות). הגרמנים שלטו בכלכלה וניצלו את התעשייה לייצור נשק.
+                    </div>`
+            },
+            {
+                id: "Poland",
+                title: "פולין",
+                content: `
+                    <div class='card-section'><b>תאריך:</b> 1 בספטמבר 1939 (פרוץ המלחמה).</div>
+                    <div class='card-section'><b>סטטוס מדיני:</b> נכבשה וחולקה.</div>
+                    <div class='card-section'>
+                        <b>פירוט:</b><br>
+                        הגרמנים תקפו בשיטת ה"בליצקריג". וורשה נכנעה תוך שבועות.
+                        <br><br>
+                        בהתאם להסכם ריבנטרופ-מולוטוב, פולין חולקה לשלושה:
+                        1. המערב סופח לגרמניה.
+                        2. המזרח סופח לברית המועצות.
+                        3. המרכז הפך ל"גנרלגוברנמן" (ממשל כללי) תחת שלטון אכזרי של האס-אס.
+                    </div>`
+            },
+            {
+                id: "Denmark",
+                title: "דנמרק",
+                content: `
+                    <div class='card-section'><b>תאריך:</b> אפריל 1940.</div>
+                    <div class='card-section'><b>סטטוס מדיני:</b> כיבוש "ייחודי".</div>
+                    <div class='card-section'>
+                        <b>פירוט:</b><br>
+                        בניגוד למדינות אחרות, בדנמרק מוסדות השלטון, הממשלה והמלך המשיכו לתפקד תחת הכיבוש עד 1943.
+                        <br><br>
+                        הם ניהלו דו-שיח מורכב עם הנאצים בניסיון לשמור על הדמוקרטיה. החל מ-1943 הגרמנים הידקו את האחיזה והאס-אס השתלט על המדינה.
+                    </div>`
+            },
+            {
+                id: "Norway",
+                title: "נורווגיה",
+                content: `
+                    <div class='card-section'><b>תאריך:</b> אפריל-יוני 1940.</div>
+                    <div class='card-section'><b>סטטוס מדיני:</b> כיבוש וממשלת בובות.</div>
+                    <div class='card-section'>
+                        <b>פירוט:</b><br>
+                        נורווגיה נלחמה כחודשיים עד שנכנעה. המלך והממשלה החוקית ברחו לבריטניה והקימו "ממשלה גולה".
+                        <br><br>
+                        בנורווגיה עצמה הוקמה ממשלת בובות פרו-גרמנית ששיתפה פעולה עם הנאצים.
+                    </div>`
+            },
+            {
+                id: "Netherlands",
+                title: "הולנד",
+                content: `
+                    <div class='card-section'><b>תאריך:</b> מאי 1940.</div>
+                    <div class='card-section'><b>סטטוס מדיני:</b> ממשל אזרחי גרמני.</div>
+                    <div class='card-section'>
+                        <b>פירוט:</b><br>
+                        הולנד נכבשה תוך 4 ימים. המלכה וילהלמינה והממשלה ברחו ללונדון והקימו ממשלה גולה.
+                        <br><br>
+                        בארץ עצמה, הממשל האזרחי ההולנדי המשיך לפעול לצד האס-אס שניהל את המדינה בפועל. המלכה שמרה על קשר עם העם באמצעות שידורי רדיו מהגלות.
+                    </div>`
+            },
+            {
+                id: "Belgium",
+                title: "בלגיה",
+                content: `
+                    <div class='card-section'><b>תאריך:</b> מאי 1940.</div>
+                    <div class='card-section'><b>סטטוס מדיני:</b> משטר צבאי.</div>
+                    <div class='card-section'>
+                        <b>פירוט:</b><br>
+                        לאחר 18 ימי לחימה, בלגיה נכנעה. המלך לאופולד השלישי בחר להישאר במדינה והפך לשבוי בארמונו.
+                        <br><br>
+                        המדינה נוהלה על ידי גנרלים גרמנים במשטר צבאי נוקשה. הממשלה הבלגית ברחה לבריטניה.
+                    </div>`
+            },
+            {
+                id: "France",
+                title: "צרפת",
+                content: `
+                    <div class='card-section'><b>תאריך:</b> יוני 1940 (כניעה).</div>
+                    <div class='card-section'><b>סטטוס מדיני:</b> מחולקת.</div>
+                    <div class='card-section'>
+                        <b>פירוט:</b><br>
+                        לאחר תבוסה ב"בליצקריג", צרפת חולקה לשניים:
+                        <br>1. <b>הצפון:</b> תחת כיבוש צבאי גרמני ישיר (כולל פריז).
+                        <br>2. <b>הדרום:</b> "ממשלת וישי" בראשות המרשל פטן. זו הייתה ממשלת בובות ששיתפה פעולה עם הנאצים.
+                        <br><br>
+                        הגנרל שארל דה-גול ברח ללונדון והוביל את "צבא צרפת החופשית".
+                    </div>`
+            },
+            {
+                id: "United Kingdom",
+                title: "בריטניה",
+                content: `
+                    <div class='card-section'><b>סטטוס מדיני:</b> המעוז האחרון.</div>
+                    <div class='card-section'>
+                        <b>פירוט:</b><br>
+                        בריטניה מעולם לא נכבשה. לאחר נפילת צרפת, היא עמדה לבדה מול גרמניה במשך שנה שלמה.
+                        <br><br>
+                        היא ספגה הפצצות קשות על עריה ("הבליץ") אך חיל האוויר המלכותי והצי מנעו פלישה גרמנית. צ'רצ'יל הוביל מדיניות בלתי מתפשרת נגד היטלר.
+                    </div>`
+            },
+            {
+                id: "Italy",
+                title: "איטליה",
+                content: `
+                    <div class='card-section'><b>תאריך:</b> הצטרפה ביוני 1940.</div>
+                    <div class='card-section'><b>סטטוס מדיני:</b> מדינת ציר (בעלת ברית).</div>
+                    <div class='card-section'>
+                        <b>פירוט:</b><br>
+                        איטליה הפשיסטית בהנהגת מוסוליני הצטרפה למלחמה לצד גרמניה.
+                        <br><br>
+                        ב-1943, לאחר פלישת בעלות הברית לסיציליה, מוסוליני הודח. גרמניה פלשה לאיטליה וכבשה את הצפון, שם הוקמה ממשלת בובות בחסות נאצית עד סוף המלחמה.
+                    </div>`
+            },
+            {
+                id: "Hungary",
+                title: "הונגריה",
+                content: `
+                    <div class='card-section'><b>תאריך:</b> נובמבר 1940 (הצטרפות).</div>
+                    <div class='card-section'><b>סטטוס מדיני:</b> מדינה גרורה (לוויין).</div>
+                    <div class='card-section'>
+                        <b>פירוט:</b><br>
+                        הונגריה הצטרפה מרצון למדינות הציר תחת שלטון פרו-נאצי.
+                        <br><br>
+                        במרץ 1944, כשהגרמנים חששו שהונגריה תערוק לצד השני, הם כבשו אותה במבצע צבאי ("מבצע מרגרטה") והשליטו טרור ישיר.
+                    </div>`
+            },
+            {
+                id: "Romania",
+                title: "רומניה",
+                content: `
+                    <div class='card-section'><b>תאריך:</b> נובמבר 1940.</div>
+                    <div class='card-section'><b>סטטוס מדיני:</b> מדינה גרורה.</div>
+                    <div class='card-section'>
+                        <b>פירוט:</b><br>
+                        רומניה הצטרפה לברית עם גרמניה ושלחה מאות אלפי חיילים להילחם לצד הנאצים בפלישה לברית המועצות (מבצע ברברוסה).
+                    </div>`
+            },
+            {
+                id: "Bulgaria",
+                title: "בולגריה",
+                content: `
+                    <div class='card-section'><b>תאריך:</b> מרץ 1941.</div>
+                    <div class='card-section'><b>סטטוס מדיני:</b> מדינה גרורה.</div>
+                    <div class='card-section'>
+                        <b>פירוט:</b><br>
+                        בולגריה הצטרפה רשמית למדינות הציר במטרה להחזיר לעצמה שטחים שאיבדה בעבר. היא שימשה קרש קפיצה לגרמנים לכיבוש יוון ויוגוסלביה.
+                    </div>`
+            },
+            {
+                id: "Republic of Serbia", // יוגוסלביה במפה
+                title: "יוגוסלביה",
+                content: `
+                    <div class='card-section'><b>תאריך:</b> אפריל 1941.</div>
+                    <div class='card-section'><b>סטטוס מדיני:</b> כיבוש ופירוק מוחלט.</div>
+                    <div class='card-section'>
+                        <b>פירוט:</b><br>
+                        נכבשה במהירות ופורקה לגורמים. שטחים סופחו לגרמניה, איטליה, הונגריה ובולגריה.
+                        <br><br>
+                        בשטח קרואטיה הוקמה מדינת בובות עצמאית-לכאורה ששיתפה פעולה עם הנאצים בביצוע פשעים אכזריים.
+                    </div>`
+            },
+            {
+                id: "Greece",
+                title: "יוון",
+                content: `
+                    <div class='card-section'><b>תאריך:</b> אפריל 1941.</div>
+                    <div class='card-section'><b>סטטוס מדיני:</b> כיבוש משולש.</div>
+                    <div class='card-section'>
+                        <b>פירוט:</b><br>
+                        לאחר שאיטליה נכשלה בכיבוש יוון, גרמניה התערבה וכבשה אותה.
+                        <br><br>
+                        המדינה חולקה בין גרמניה, איטליה ובולגריה. הוקמה "ממשלת בובות" באתונה, בעוד המלך והממשלה החוקית ברחו ללונדון.
+                    </div>`
+            },
+            {
+                id: "Russia",
+                title: "ברית המועצות",
+                content: `
+                    <div class='card-section'><b>תאריך:</b> יוני 1941 (מבצע ברברוסה).</div>
+                    <div class='card-section'><b>סטטוס מדיני:</b> הותקפה בהפתעה.</div>
+                    <div class='card-section'>
+                        <b>פירוט:</b><br>
+                        גרמניה הפרה את הסכם אי-התקפה ופלשה עם 4 מיליון חיילים.
+                        <br><br>
+                        הגרמנים כבשו שטחים עצומים במערב רוסיה והסבו אבדות כבדות (4 מיליון הרוגים סובייטים בשלב הראשון). זה היה גם האות לתחילת ההשמדה השיטתית של היהודים בשטחים הכבושים.
+                    </div>`
+            }
+        ];
 
-        // --- אתחול המפה ---
+        // ==========================================
+        // 4. אתחול מפה ופונקציות עזר
+        // ==========================================
         function initMap() {
-            // הגדרת מפה עם שליטה (זום וגרירה מאופשרים)
+            if (map) return; 
+
             map = L.map('map', {
                 center: [50, 15],
                 zoom: 4,
-                zoomControl: true, // הוספת כפתורי זום
-                dragging: true, // אפשרות גרירה
-                attributionControl: false,
-                minZoom: 3
+                zoomControl: true,
+                minZoom: 3,
+                maxBounds: [[-85, -180], [85, 180]]
             });
 
-            // עיצוב כהה ומותאם אישית למפה
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+                attribution: 'Map data &copy; OSM contributors',
                 maxZoom: 19
             }).addTo(map);
 
-            // טעינת נתונים
             fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json')
             .then(res => res.json())
             .then(data => {
-                const relevantFeatures = data.features.filter(f => {
-                    if (f.properties.name === "United States of America") f.properties.name = "United States";
+                const relevant = data.features.filter(f => {
+                    let name = f.properties.name;
+                    if (name === "United States of America") f.properties.name = "United States";
                     return Object.keys(countryData).includes(f.properties.name);
                 });
 
-                geoJsonLayer = L.geoJSON(relevantFeatures, {
-                    style: getStyleBySide,
+                geoJsonLayer = L.geoJSON(relevant, {
+                    style: getStyle,
                     onEachFeature: onFeatureInteract
                 }).addTo(map);
             });
         }
 
-        function getStyleBySide(feature) {
+        function getStyle(feature) {
             const name = feature.properties.name;
             const data = countryData[name];
-            let color = '#333'; // ניטרלי כהה
+            let color = '#555';
 
             if (data) {
                 if (data.side === 'axis') color = 'var(--axis-red)';
                 else if (data.side === 'allies') color = 'var(--allies-blue)';
-                else if (data.side === 'soviet') color = 'var(--soviet-purple)';
-                else color = '#555';
+                else if (data.side === 'soviet') color = '#9b59b6';
+                else color = '#7f8c8d';
             }
 
             return {
@@ -412,29 +676,21 @@
             const name = feature.properties.name;
             const info = countryData[name];
 
-            if (info) {
-                // תווית קבועה בעברית בלבד
-                const labelContent = `<div class="flag-icon">${info.flag}</div>${info.name}`;
-                layer.bindTooltip(labelContent, { 
-                    permanent: true, 
-                    direction: "center", 
-                    className: "country-label" 
-                });
-            }
-
+            // Removed code that added permanent tooltips (flags/letters)
+            
             layer.on('mouseover', function(e) {
-                if(isInputLocked) return;
-                layer.setStyle({ weight: 2, color: '#fff', fillOpacity: 0.8 });
+                if (isInputLocked) return;
+                layer.setStyle({ weight: 3, color: '#fff', fillOpacity: 0.8 });
             });
 
             layer.on('mouseout', function(e) {
-                if(isInputLocked) return;
-                if (!feature.properties.permanentColor) {
+                if (isInputLocked) return;
+                if (!layer.feature.properties.permanentColor) {
                     geoJsonLayer.resetStyle(layer);
                 } else {
                     layer.setStyle({ 
-                        fillColor: feature.properties.permanentColor,
-                        fillOpacity: 0.6,
+                        fillColor: layer.feature.properties.permanentColor,
+                        fillOpacity: 0.7,
                         weight: 1,
                         color: '#222'
                     });
@@ -442,132 +698,186 @@
             });
 
             layer.on('click', function(e) {
-                if(isInputLocked) return;
-                checkAnswer(feature.properties.name, layer);
+                if (isInputLocked) return;
+                handleMapClick(feature.properties.name, layer);
             });
         }
 
-        // --- לוגיקת משחק ---
-
-        function startGame() {
-            // ניגון מוזיקה (דורש אינטראקציית משתמש)
-            const audio = document.getElementById('bg-music');
-            if(audio) {
-                audio.volume = 0.3; // ווליום התחלתי
-                audio.play().catch(e => console.log("Audio play blocked until interaction"));
-            }
-
-            document.getElementById('start-screen').classList.add('hidden');
-            document.getElementById('briefing-panel').classList.remove('hidden');
-            document.getElementById('event-log').style.display = 'block'; // פתיחת הלוג בהתחלה
+        // ==========================================
+        // 5. לוגיקת משחק כללית
+        // ==========================================
+        
+        function resetGame() {
+            document.getElementById('main-menu').style.display = 'none';
+            document.getElementById('game-ui').style.display = 'flex';
+            document.getElementById('timeline-panel').style.display = 'none';
+            document.getElementById('cards-panel').style.display = 'none';
+            document.getElementById('find-instruction').style.display = 'none';
+            document.getElementById('event-log').style.display = 'none';
             
+            const audio = document.getElementById('bg-music');
+            if(audio) { audio.volume = 0.3; audio.play().catch(e=>{}); }
+
             initMap();
-            setTimeout(() => loadLevel(0), 1000);
+            
+            if(geoJsonLayer) {
+                geoJsonLayer.eachLayer(layer => {
+                    delete layer.feature.properties.permanentColor;
+                    geoJsonLayer.resetStyle(layer);
+                });
+            }
         }
 
-        function loadLevel(idx) {
-            if (idx >= campaigns.length) {
-                endGame();
+        function handleMapClick(clickedName, layer) {
+            if (currentGameMode === 'timeline') {
+                checkTimelineAnswer(clickedName, layer);
+            } else if (currentGameMode === 'cards') {
+                checkCardAnswer(clickedName, layer);
+            }
+        }
+
+        // ==========================================
+        // 6. לוגיקת משחק 1: ציר הזמן
+        // ==========================================
+        function startTimelineGame() {
+            currentGameMode = 'timeline';
+            resetGame();
+            document.getElementById('mode-title').innerText = "משחק 1: המלחמה על ציר הזמן";
+            document.getElementById('timeline-panel').style.display = 'block';
+            document.getElementById('event-log').style.display = 'block';
+            currentStageIndex = 0;
+            score = 0;
+            updateStatus();
+            setTimeout(() => loadTimelineStage(0), 1000);
+        }
+
+        function loadTimelineStage(idx) {
+            if (idx >= timelineStages.length) {
+                alert("כל הכבוד! סיימת את המלחמה.");
+                location.reload();
                 return;
             }
             
-            currentStageIdx = idx;
-            const stage = campaigns[idx];
+            const stage = timelineStages[idx];
+            document.getElementById('briefing-title').innerText = `${stage.year}: ${stage.title}`;
+            document.getElementById('briefing-text').innerHTML = stage.text;
             
-            document.getElementById('year-display').innerText = stage.year;
-            document.getElementById('briefing-title').innerText = stage.title;
-            
-            // כתיבת טקסט באפקט מכונה
-            typeWriter(stage.text, document.getElementById('briefing-text'), () => {
-                isInputLocked = false;
-                document.getElementById('instruction').style.opacity = 1;
-            });
-
-            // טיסה ליעד (אבל המשתמש יכול לשנות זום אחר כך)
             map.flyTo(stage.zoom, 5, { duration: 2 });
-
-            // הוספה ליומן
             addToLog(stage.year, stage.title);
+        }
+
+        function checkTimelineAnswer(clickedName, layer) {
+            const stage = timelineStages[currentStageIndex];
+            
+            if (clickedName === stage.targetId) {
+                score += 100;
+                updateStatus();
+                
+                let color = '#555';
+                if (stage.action.includes('axis')) color = 'var(--axis-red)';
+                else if (stage.action.includes('liberate') || stage.action.includes('final')) color = 'var(--allies-blue)';
+                else if (stage.action === 'split') color = 'var(--axis-red)';
+
+                layer.setStyle({ fillColor: color, fillOpacity: 0.8 });
+                layer.feature.properties.permanentColor = color;
+
+                alert(stage.successMsg);
+                currentStageIndex++;
+                loadTimelineStage(currentStageIndex);
+            } else {
+                score -= 10;
+                updateStatus();
+                alert("טעות במיקום. נסה שנית.");
+            }
+        }
+
+        // ==========================================
+        // 7. לוגיקת משחק 2: הכר את המפה (כרטיסים)
+        // ==========================================
+        function startCardsGame() {
+            currentGameMode = 'cards';
+            resetGame();
+            document.getElementById('mode-title').innerText = "משחק 2: הכר את המפה";
+            document.getElementById('cards-panel').style.display = 'none';
+            document.getElementById('find-instruction').style.display = 'block';
+            
+            shuffleArray(countryCards);
+            currentStageIndex = 0;
+            score = 0;
+            updateStatus();
+            
+            map.setView([50, 15], 4);
+            
+            loadCardStage(0);
+        }
+
+        function loadCardStage(idx) {
+            if (idx >= countryCards.length) {
+                alert("סיימת את כל התיקים! כל הכבוד.");
+                location.reload();
+                return;
+            }
+
+            const card = countryCards[idx];
+            
+            document.getElementById('cards-panel').style.display = 'none';
+            const instruction = document.getElementById('find-instruction');
+            instruction.style.display = 'block';
+            instruction.innerText = `איתור יעד: ${card.title}`;
+            
+            isInputLocked = false;
+        }
+
+        function checkCardAnswer(clickedName, layer) {
+            const card = countryCards[currentStageIndex];
+            
+            if (clickedName === card.id) {
+                score += 50;
+                updateStatus();
+                
+                document.getElementById('find-instruction').style.display = 'none';
+                const panel = document.getElementById('cards-panel');
+                panel.style.display = 'block';
+                document.getElementById('card-header').innerText = "תיק מדינה: " + card.title;
+                document.getElementById('card-body').innerHTML = card.content;
+                
+                layer.setStyle({ fillColor: '#f1c40f', fillOpacity: 0.8 });
+                layer.feature.properties.permanentColor = '#f1c40f';
+                
+                map.flyTo(layer.getBounds().getCenter(), 5);
+                
+                isInputLocked = true;
+            } else {
+                alert("טעות. זוהי " + (countryData[clickedName]?.name || clickedName));
+            }
+        }
+
+        function nextCard() {
+            currentStageIndex++;
+            loadCardStage(currentStageIndex);
+        }
+
+        // ==========================================
+        // 8. פונקציות עזר
+        // ==========================================
+        function updateStatus() {
+            document.getElementById('status-display').innerText = "ניקוד: " + score;
         }
 
         function addToLog(year, text) {
             const logDiv = document.getElementById('event-log');
             const entry = document.createElement('div');
-            entry.className = "log-entry";
-            entry.innerHTML = `<span>[${year}]</span> ${text}`;
-            logDiv.prepend(entry); // הוספה למעלה
+            entry.style.borderBottom = "1px dashed #555";
+            entry.style.padding = "5px 0";
+            entry.innerHTML = `<span style="color:var(--terminal-amber)">[${year}]</span> ${text}`;
+            logDiv.prepend(entry);
         }
 
-        function toggleLog() {
-            const log = document.getElementById('event-log');
-            if (log.style.display === 'none') {
-                log.style.display = 'block';
-            } else {
-                log.style.display = 'none';
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
             }
-        }
-
-        function checkAnswer(clickedName, layer) {
-            const stage = campaigns[currentStageIdx];
-            
-            if (clickedName === stage.targetId) {
-                // הצלחה
-                isInputLocked = true;
-                score += 100; // ניקוד הגיוני
-                document.getElementById('score-display').innerText = score;
-
-                // עדכון צבע
-                let newColor = null;
-                if (stage.actionType === 'conquest' || stage.actionType === 'split') newColor = 'var(--axis-red)';
-                else if (stage.actionType === 'liberate' || stage.actionType === 'final_victory') newColor = 'var(--allies-blue)';
-                
-                if (newColor) {
-                    layer.setStyle({ fillColor: newColor, fillOpacity: 0.8 });
-                    layer.feature.properties.permanentColor = newColor;
-                }
-
-                // הצגת הודעת סיום שלב
-                document.getElementById('level-title').innerText = "המשימה הושלמה";
-                document.getElementById('level-desc').innerHTML = stage.fact;
-                document.getElementById('level-modal').classList.remove('hidden');
-
-            } else {
-                // כישלון
-                score -= 20; // קנס סביר
-                document.getElementById('score-display').innerText = score;
-                layer.setStyle({ fillColor: '#666', fillOpacity: 0.9 });
-                setTimeout(() => { 
-                    if (!layer.feature.properties.permanentColor) geoJsonLayer.resetStyle(layer);
-                }, 500);
-            }
-        }
-
-        function nextLevel() {
-            document.getElementById('level-modal').classList.add('hidden');
-            loadLevel(currentStageIdx + 1);
-        }
-
-        function endGame() {
-            const modal = document.getElementById('level-modal');
-            document.getElementById('level-title').innerText = "המלחמה הסתיימה";
-            document.getElementById('level-desc').innerHTML = `ניקוד סופי: ${score}<br>העולם החופשי ניצל.`;
-            modal.classList.remove('hidden');
-            modal.querySelector('button').innerText = "שחק שוב";
-            modal.querySelector('button').onclick = () => location.reload();
-        }
-
-        function typeWriter(text, element, callback) {
-            element.innerHTML = "";
-            let i = 0;
-            const speed = 20;
-            function type() {
-                if (i < text.length) {
-                    element.innerHTML += text.charAt(i);
-                    i++;
-                    setTimeout(type, speed);
-                } else if (callback) callback();
-            }
-            type();
         }
 
     </script>
