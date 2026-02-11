@@ -119,9 +119,27 @@
         
         #map {
             flex-grow: 1;
-            background: #1a1a1a;
+            background: #aadaff; /* רקע כחול לגיבוי */
             z-index: 1;
         }
+
+        /* תוויות מדינות משופרות */
+        .leaflet-tooltip.country-label {
+            background: rgba(0, 0, 0, 0.6); /* רקע כהה לקריאות על המפה הצבעונית */
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+            color: #fff;
+            font-family: 'Heebo', sans-serif;
+            font-size: 14px;
+            font-weight: bold;
+            text-align: center;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+        
+        .label-flag { font-size: 20px; display: block; margin-bottom: 2px; }
+        .label-name { font-size: 12px; display: block; text-shadow: 1px 1px 2px black; }
 
         /* --- אלמנטים למשחק 1: ציר הזמן --- */
         #timeline-panel {
@@ -403,7 +421,7 @@
         ];
 
         // ==========================================
-        // 3. נתוני משחק 2: הכר את המפה (כרטיסים מורחבים)
+        // 3. נתוני משחק 2: הכר את המפה (כרטיסים)
         // ==========================================
         const countryCards = [
             {
@@ -630,8 +648,9 @@
                 maxBounds: [[-85, -180], [85, 180]]
             });
 
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-                attribution: 'Map data &copy; OSM contributors',
+            // שימוש במפה צבעונית עם אוקיינוסים כחולים (ללא תוויות)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap & CartoDB',
                 maxZoom: 19
             }).addTo(map);
 
@@ -667,20 +686,17 @@
                 fillColor: color,
                 weight: 1,
                 opacity: 1,
-                color: '#222',
-                fillOpacity: 0.5
+                color: '#444', // גבול כהה יותר למפה הבהירה
+                fillOpacity: 0.6
             };
         }
 
         function onFeatureInteract(feature, layer) {
-            const name = feature.properties.name;
-            const info = countryData[name];
-
-            // Removed code that added permanent tooltips (flags/letters)
+            // הטיפול בתוויות נעשה בפונקציית updateLabels לפי מצב המשחק
             
             layer.on('mouseover', function(e) {
                 if (isInputLocked) return;
-                layer.setStyle({ weight: 3, color: '#fff', fillOpacity: 0.8 });
+                layer.setStyle({ weight: 3, color: '#000', fillOpacity: 0.8 });
             });
 
             layer.on('mouseout', function(e) {
@@ -692,7 +708,7 @@
                         fillColor: layer.feature.properties.permanentColor,
                         fillOpacity: 0.7,
                         weight: 1,
-                        color: '#222'
+                        color: '#444'
                     });
                 }
             });
@@ -700,6 +716,31 @@
             layer.on('click', function(e) {
                 if (isInputLocked) return;
                 handleMapClick(feature.properties.name, layer);
+            });
+        }
+
+        // פונקציה לעדכון התוויות לפי סוג המשחק
+        function updateMapLabels(showNames) {
+            if (!geoJsonLayer) return;
+
+            geoJsonLayer.eachLayer(layer => {
+                const name = layer.feature.properties.name;
+                const info = countryData[name];
+                
+                if (info) {
+                    layer.unbindTooltip(); // הסרת תווית קודמת
+                    
+                    let content = `<span class="label-flag">${info.flag}</span>`;
+                    if (showNames) {
+                        content += `<span class="label-name">${info.name}</span>`;
+                    }
+
+                    layer.bindTooltip(content, { 
+                        permanent: true, 
+                        direction: "center", 
+                        className: "country-label" 
+                    });
+                }
             });
         }
 
@@ -745,6 +786,10 @@
             document.getElementById('mode-title').innerText = "משחק 1: המלחמה על ציר הזמן";
             document.getElementById('timeline-panel').style.display = 'block';
             document.getElementById('event-log').style.display = 'block';
+            
+            // עדכון תוויות: הצג דגל + שם
+            setTimeout(() => updateMapLabels(true), 500); 
+
             currentStageIndex = 0;
             score = 0;
             updateStatus();
@@ -801,6 +846,9 @@
             document.getElementById('cards-panel').style.display = 'none';
             document.getElementById('find-instruction').style.display = 'block';
             
+            // עדכון תוויות: הצג דגל בלבד (ללא שם) לאתגר
+            setTimeout(() => updateMapLabels(false), 500);
+
             shuffleArray(countryCards);
             currentStageIndex = 0;
             score = 0;
